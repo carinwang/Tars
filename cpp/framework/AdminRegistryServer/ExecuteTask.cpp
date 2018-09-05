@@ -15,7 +15,6 @@
  */
 
 #include "ExecuteTask.h"
-#include "util/tc_functor.h"
 #include "servant/Application.h"
 #include "util/tc_timeprovider.h"
 
@@ -277,6 +276,46 @@ EMTaskItemStatus TaskList::patch(const TaskItemReq &req, string &log)
     return EM_I_SUCCESS; 
 }
 
+EMTaskItemStatus TaskList::gridPatchServer(const TaskItemReq &req, string &log)
+{
+    int ret = -1;
+    try
+    {
+        TLOGDEBUG("TaskList::grid_server:" << TC_Common::tostr(req.parameters.begin(), req.parameters.end()) << endl);
+        
+        string status   = get("grid_status", req.parameters);
+
+        vector<ServerGridDesc> gridDescList;
+        
+        tars::ServerGridDesc serverGridDesc;
+        serverGridDesc.application    = req.application;
+        serverGridDesc.servername = req.serverName;
+        serverGridDesc.nodename   = req.nodeName;
+        
+        if(TC_Common::strto<int>(status) == tars::NORMAL)
+            serverGridDesc.status    = tars::NORMAL;
+        else if(TC_Common::strto<int>(status) == tars::NO_FLOW)
+            serverGridDesc.status    = tars::NO_FLOW;
+        else if(TC_Common::strto<int>(status) == tars::GRID)
+            serverGridDesc.status    = tars::GRID;
+        else
+            serverGridDesc.status    = tars::NORMAL;
+        
+        gridDescList.push_back(serverGridDesc);
+        
+        vector<ServerGridDesc> gridFailDescList;
+        ret = _adminPrx->gridPatchServer(gridDescList, gridFailDescList,log);
+        if (ret == 0)
+            return EM_I_SUCCESS;
+    }
+    catch (exception &ex)
+    {
+        log = ex.what();
+        TLOGERROR("TaskList::gridPatchServer error:" << log << endl);
+    }
+
+    return EM_I_FAILED;    
+}
 EMTaskItemStatus TaskList::executeSingleTask(size_t index, const TaskItemReq &req)
 {
     TLOGDEBUG("TaskList::executeSingleTask: taskNo=" << req.taskNo 
@@ -313,6 +352,10 @@ EMTaskItemStatus TaskList::executeSingleTask(size_t index, const TaskItemReq &re
     {
         ret = undeploy(req, log);
     }
+    else if (req.command == "grid_server")
+    {
+        ret = gridPatchServer(req,log);
+    }
     else 
     {
         ret = EM_I_FAILED;
@@ -337,10 +380,8 @@ void TaskListSerial::execute()
 {
     TLOGDEBUG("TaskListSerial::execute" << endl);
     
-    TC_Functor<void> cmd(this, &TaskListSerial::doTask);
-    TC_Functor<void>::wrapper_type fwrapper(cmd);
-
-    _pool.exec(fwrapper);
+    auto cmd = std::bind(&TaskListSerial::doTask, this);
+    _pool.exec(cmd);
 }
 
 void TaskListSerial::doTask()
@@ -392,15 +433,12 @@ void TaskListParallel::execute()
 {
     TLOGDEBUG("TaskListParallel::execute" << endl);
     
-    TC_Functor<void, TL::TLMaker<TaskItemReq, size_t>::Result> cmd(this, &TaskListParallel::doTask);
-
     TC_LockT<TC_ThreadMutex> lock(*this);
 
     for (size_t i=0; i < _taskReq.taskItemReq.size(); i++)
     {
-        TC_Functor<void, TL::TLMaker<TaskItemReq, size_t>::Result>::wrapper_type fwrapper(cmd, _taskReq.taskItemReq[i], i);
-
-        _pool.exec(fwrapper);
+        auto cmd = std::bind(&TaskListParallel::doTask, this, _taskReq.taskItemReq[i], i);
+        _pool.exec(cmd);
     }
 }
 

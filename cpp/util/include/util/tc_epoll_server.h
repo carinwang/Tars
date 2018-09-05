@@ -23,6 +23,7 @@
 #include <vector>
 #include <list>
 #include <algorithm>
+#include <functional>
 #include "util/tc_epoller.h"
 #include "util/tc_thread.h"
 #include "util/tc_clientsocket.h"
@@ -86,8 +87,9 @@ public:
      * 定义协议解析接口的操作对象
      * 注意必须是线程安全的或是可以重入的
      */
-    typedef TC_Functor<int, TL::TLMaker<string &, string&>::Result> protocol_functor;
-    typedef TC_Functor<int, TL::TLMaker<int, string&>::Result>      header_filter_functor;
+    using protocol_functor = std::function<int (string&, string&)>;
+    using header_filter_functor = std::function<int (int, string&)>;
+    using conn_protocol_functor = std::function<int (string&, string&, void*)>;
 
     class NetThread;
 
@@ -333,7 +335,9 @@ public:
 
     };
 
-    typedef TC_Functor<bool /*processed*/, TL::TLMaker<void* /*conn*/, const std::string& /*data*/ >::Result> auth_process_wrapper_functor;
+
+    using close_functor = std::function<void (void*, EM_CLOSE_T )>;
+    using auth_process_wrapper_functor = std::function<bool (void*, const std::string& )>;
 
     ////////////////////////////////////////////////////////////////////////////
     // 服务端口管理,监听socket信息
@@ -598,7 +602,7 @@ public:
          * 接收队列的大小
          * @return size_t
          */
-        size_t getRecvBufferSize();
+        size_t getRecvBufferSize() const;
 
         /**
          * 默认的协议解析类, 直接echo
@@ -681,7 +685,19 @@ public:
          * 获取服务端回包缓存的大小限制
          */
         size_t getBackPacketBuffLimit();
-
+        /**  
+         * 设置close回调函数 
+         */
+        void setOnClose(const close_functor& f) { _closeFunc = f; } 
+        /**  
+         * 注册协议解析器 
+         */
+        void setConnProtocol(const conn_protocol_functor& cpf, int iHeaderLen = 0, const header_filter_functor& hf = echo_header_filter);
+        /**  
+         * 获取协议解析器 
+         * @return conn_protocol_functor& 
+         */
+        conn_protocol_functor& getConnProtocol() { return _cpf; }
         /**
          * 注册鉴权包裹函数
          * @param apwf
@@ -818,6 +834,12 @@ public:
          */
         std::string                 _accessKey;
         std::string                 _secretKey;
+        
+        //连接关闭的回调函数 
+        close_functor           _closeFunc;
+
+        // 协议解析
+        conn_protocol_functor   _cpf;
     };
 
     ////////////////////////////////////////////////////////////////////////////
@@ -1113,7 +1135,7 @@ public:
              */
             bool                _authInit;
 #if TARS_SSL
-            TC_OpenSSL*         _openssl;
+            std::unique_ptr<TC_OpenSSL> _openssl;
 #endif
         };
         ////////////////////////////////////////////////////////////////////////////
