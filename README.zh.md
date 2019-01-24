@@ -25,6 +25,7 @@ Tars详细介绍参见[Introduction.md](Introduction.md)。
 - Java
 - Nodejs
 - PHP
+- Go
 
 ## 安装说明
 
@@ -35,6 +36,19 @@ Tars详细介绍参见[Introduction.md](Introduction.md)。
 ## 性能数据
 
 参见[ docs/tars_performce.md](docs/tars_performce.md)。
+
+## 子项目
+
+目录名称 |功能
+------------------|----------------
+framework         |C++语言框架基础服务的源码实现
+cpp               |C++语言框架rpc的源码实现
+java              |java语言框架rpc的源码实现
+go                |go语言框架rpc的源码实现
+nodejs            |nodejs语言框架rpc的源码实现
+php               |php语言框架rpc的源码实现
+tup               |tup组包协议各个语言的源码实现
+web               |管理tars的web源码实现
 
 ## 开发技术文档
 
@@ -47,5 +61,8 @@ Tars的开源协议为BSD-3-Clause，详情参见[LICENSE.TXT](LICENSE.TXT)。
 ## 联系方式
 
 qq技术交流群1群：579079160（已满）。
-qq技术交流群2群：669339903
+
+qq技术交流群2群：669339903。
+
+微信号：TARS01
 
